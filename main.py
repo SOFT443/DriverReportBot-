@@ -1,5 +1,4 @@
 import logging
-import asyncio
 from datetime import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler, ContextTypes
@@ -92,16 +91,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.warning(f"Update {update} caused error {context.error}")
 
-async def keep_alive():
-    while True:
-        await asyncio.sleep(150)
-        logger.info("Keep-alive ping")
-
-async def post_init(application: Application) -> None:
-    asyncio.create_task(keep_alive())
-
 def main() -> None:
-    application = Application.builder().token(TOKEN).post_init(post_init).build()
+    application = Application.builder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
