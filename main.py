@@ -2,6 +2,11 @@ import logging
 from datetime import datetime
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler, ContextTypes
+import threading
+import time
+import requests
+from flask import Flask
+from threading import Thread
 
 TOKEN = "7920382185:AAF3Mi0BAOBW94u3OgFbe3uRdCM_Lda7pvc"
 ADMIN_IDS = [6272133492, 8082904812]
@@ -12,6 +17,41 @@ logging.basicConfig(
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
+
+# Flask приложение для keep-alive
+app = Flask(__name__)
+
+@app.route('/')
+def health_check():
+    return "Bot is running!"
+
+def run_flask():
+    app.run(host='0.0.0.0', port=8080)
+
+def ping_self():
+    """Каждые 3 минуты пингует самого себя"""
+    while True:
+        try:
+            # Пингуем localhost:8080 (самого себя через Flask)
+            response = requests.get('http://localhost:8080/')
+            logger.info(f"Self-ping успешен: {response.status_code}")
+        except Exception as e:
+            logger.error(f"Self-ping ошибка: {e}")
+        time.sleep(180)  # 3 минуты
+
+def keep_alive():
+    """Запускает Flask сервер и пинг в отдельных потоках"""
+    # Запускаем Flask
+    t = Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+    logger.info("Keep-alive сервер запущен на порту 8080")
+    
+    # Запускаем пинг
+    p = Thread(target=ping_self)
+    p.daemon = True
+    p.start()
+    logger.info("Self-ping запущен (каждые 3 минуты)")
 
 def load_plates():
     try:
@@ -92,6 +132,9 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     logger.warning(f"Update {update} caused error {context.error}")
 
 def main() -> None:
+    # Запускаем keep-alive с пингом
+    keep_alive()
+    
     application = Application.builder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
