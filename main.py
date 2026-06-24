@@ -1,8 +1,8 @@
 import logging
 import os
-import asyncio
+import threading
 from datetime import datetime
-from flask import Flask, request, jsonify
+from flask import Flask
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler, ContextTypes
 
@@ -16,10 +16,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Flask для пингов
 app = Flask(__name__)
-application = None
 
-# Загрузка номеров
+@app.route('/')
+def health():
+    return "Bot is running!", 200
+
+def run_flask():
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+
 def load_plates():
     try:
         with open("valid_plates.txt", "r", encoding="utf-8") as f:
@@ -46,7 +53,6 @@ def is_valid_plate(plate: str) -> bool:
             return True
     return False
 
-# Обработчики команд
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text(
         "Введите государственный номер вашего автомобиля (например, А445ВК797 или А445ВК):"
@@ -99,45 +105,14 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.warning(f"Update {update} caused error {context.error}")
 
-# Webhook endpoint
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    global application
-    if application is None:
-        return "Application not ready", 500
-    
-    try:
-        json_data = request.get_json(force=True)
-        update = Update.de_json(json_data, application.bot)
-        
-        # СОЗДАЕМ НОВЫЙ EVENT LOOP ДЛЯ АСИНХРОННОГО ВЫЗОВА
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(application.process_update(update))
-        loop.close()
-        
-        return "OK", 200
-    except Exception as e:
-        logger.error(f"Webhook error: {e}")
-        return "Error", 500
-
-# Health check
-@app.route('/')
-def health():
-    return "Bot is running!", 200
-
-async def setup_webhook():
-    global application
-    render_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://telegram-bot-eouw.onrender.com')
-    webhook_url = f"{render_url}/webhook"
-    
-    await application.bot.delete_webhook()
-    await application.bot.set_webhook(webhook_url)
-    logger.info(f"Webhook установлен: {webhook_url}")
-
 def main():
-    global application
-
+    # Запускаем Flask в отдельном потоке
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+    logger.info("Flask сервер запущен на порту 8080")
+    
+    # Запускаем бота (polling)
     application = Application.builder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
@@ -151,12 +126,10 @@ def main():
     application.add_handler(conv_handler)
     application.add_error_handler(error_handler)
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    loop.run_until_complete(setup_webhook())
-
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    # Удаляем webhook если есть
+    application.bot.delete_webhook()
+    
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
