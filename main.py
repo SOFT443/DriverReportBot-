@@ -8,7 +8,7 @@ import requests
 from flask import Flask
 from threading import Thread
 
-TOKEN = "7920382185:AAF3Mi0BAOBW94u3OgFbe3uRdCM_Lda7pvc"
+TOKEN = "7920382185:AAHhvz3nLpE_6y3ByIDCF7u_9jYAmiUxD3k"
 ADMIN_IDS = [6272133492, 8082904812]
 PLATE, SCHEDULE = range(2)
 
