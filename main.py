@@ -105,7 +105,7 @@ def webhook():
     global application
     if application is None:
         return "Application not ready", 500
-
+    
     try:
         json_data = request.get_json(force=True)
         update = Update.de_json(json_data, application.bot)
@@ -125,9 +125,7 @@ async def setup_webhook():
     render_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://telegram-bot-eouw.onrender.com')
     webhook_url = f"{render_url}/webhook"
     
-    # Удаляем старый webhook
     await application.bot.delete_webhook()
-    # Устанавливаем новый
     await application.bot.set_webhook(webhook_url)
     logger.info(f"Webhook установлен: {webhook_url}")
 
@@ -147,12 +145,10 @@ def main():
     application.add_handler(conv_handler)
     application.add_error_handler(error_handler)
 
-    # Установка webhook (асинхронно)
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(setup_webhook())
 
-    # Запуск Flask
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port, debug=False)
 
