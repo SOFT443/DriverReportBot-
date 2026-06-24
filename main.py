@@ -2,7 +2,7 @@ import logging
 import os
 import asyncio
 from datetime import datetime
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler, ContextTypes
 
@@ -109,7 +109,13 @@ def webhook():
     try:
         json_data = request.get_json(force=True)
         update = Update.de_json(json_data, application.bot)
-        application.process_update(update)
+        
+        # СОЗДАЕМ НОВЫЙ EVENT LOOP ДЛЯ АСИНХРОННОГО ВЫЗОВА
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(application.process_update(update))
+        loop.close()
+        
         return "OK", 200
     except Exception as e:
         logger.error(f"Webhook error: {e}")
