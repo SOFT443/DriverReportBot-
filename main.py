@@ -1,5 +1,6 @@
 import logging
 import os
+import asyncio
 from datetime import datetime
 from flask import Flask, request
 from telegram import Update
@@ -114,10 +115,21 @@ def webhook():
         logger.error(f"Webhook error: {e}")
         return "Error", 500
 
-# Health check для UptimeRobot
+# Health check
 @app.route('/')
 def health():
     return "Bot is running!", 200
+
+async def setup_webhook():
+    global application
+    render_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://telegram-bot-eouw.onrender.com')
+    webhook_url = f"{render_url}/webhook"
+    
+    # Удаляем старый webhook
+    await application.bot.delete_webhook()
+    # Устанавливаем новый
+    await application.bot.set_webhook(webhook_url)
+    logger.info(f"Webhook установлен: {webhook_url}")
 
 def main():
     global application
@@ -135,18 +147,13 @@ def main():
     application.add_handler(conv_handler)
     application.add_error_handler(error_handler)
 
-    # Установка webhook
-    render_url = os.environ.get('RENDER_EXTERNAL_URL', 'https://telegram-bot-eouw.onrender.com')
-    webhook_url = f"{render_url}/webhook"
-
-    try:
-        application.bot.set_webhook(webhook_url)
-        logger.info(f"Webhook установлен: {webhook_url}")
-    except Exception as e:
-        logger.error(f"Ошибка установки webhook: {e}")
+    # Установка webhook (асинхронно)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    loop.run_until_complete(setup_webhook())
 
     # Запуск Flask
-    port = int(os.environ.get('PORT', 8080))
+    port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port, debug=False)
 
 if __name__ == "__main__":
